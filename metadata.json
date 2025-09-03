@@ -1,0 +1,5 @@
+{
+  "name": "DNA Sequence Analyzer",
+  "description": "An interactive tool to analyze DNA sequences. It validates the sequence, counts nucleotides, calculates GC content, finds the complement and reverse complement, and performs transcription and translation into amino acid sequences.",
+  "requestFramePermissions": []
+}
