@@ -1,6 +1,5 @@
-
 import React from 'react';
-import type { AnalysisResult, NucleotideCounts, TranslationFrame } from '../types';
+import type { AnalysisResult, NucleotideCounts } from '../types';
 import ResultCard from './ResultCard';
 
 interface ResultsDisplayProps {
@@ -33,6 +32,8 @@ const SequenceDisplay: React.FC<{ sequence: string }> = ({ sequence }) => (
 );
 
 const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result }) => {
+  const sortedOrfs = [...result.orfs].sort((a, b) => b.length - a.length);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <ResultCard title="Validation & Length">
@@ -74,15 +75,39 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result }) => {
         <SequenceDisplay sequence={result.transcription} />
       </ResultCard>
 
-      <ResultCard title="Protein Translation (3 Reading Frames)" className="lg:col-span-3">
-         <div className="space-y-4">
-            {result.translations.map(({ frame, protein }) => (
-                <div key={frame}>
-                    <h4 className="font-semibold text-slate-700">Frame {frame}</h4>
-                    <SequenceDisplay sequence={protein} />
-                </div>
-            ))}
-         </div>
+      <ResultCard title="Open Reading Frames (ORFs)" className="lg:col-span-3">
+         {sortedOrfs.length > 0 ? (
+          <div className="overflow-x-auto relative max-h-96">
+            <table className="w-full text-sm text-left text-slate-600">
+              <thead className="text-xs text-slate-700 uppercase bg-slate-100 sticky top-0">
+                <tr>
+                  <th scope="col" className="px-4 py-3">Frame</th>
+                  <th scope="col" className="px-4 py-3">Start</th>
+                  <th scope="col" className="px-4 py-3">End</th>
+                  <th scope="col" className="px-4 py-3">Length (AA)</th>
+                  <th scope="col" className="px-4 py-3">Protein Sequence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedOrfs.map((orf) => (
+                  <tr key={`${orf.frame}-${orf.start}`} className="bg-white border-b hover:bg-slate-50">
+                    <td className="px-4 py-4 font-medium whitespace-nowrap">{orf.frame}</td>
+                    <td className="px-4 py-4">{orf.start}</td>
+                    <td className="px-4 py-4">{orf.end}</td>
+                    <td className="px-4 py-4">{orf.length}</td>
+                    <td className="px-4 py-4">
+                      <p className="font-mono text-xs bg-slate-100 p-2 rounded break-all max-h-24 overflow-y-auto w-full">
+                        {orf.protein}
+                      </p>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-slate-500 italic text-center py-4">No Open Reading Frames (from AUG start to stop codon) were found.</p>
+        )}
       </ResultCard>
     </div>
   );

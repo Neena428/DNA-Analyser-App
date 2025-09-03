@@ -1,5 +1,4 @@
-
-import type { AnalysisResult, NucleotideCounts, TranslationFrame } from '../types';
+import type { AnalysisResult, NucleotideCounts, OpenReadingFrame } from '../types';
 import { CODON_TABLE } from '../constants';
 
 const cleanSequence = (sequence: string): string => {
@@ -40,36 +39,66 @@ const transcribe = (sequence: string): string => {
   return sequence.replace(/T/g, 'U');
 };
 
-const translate = (rnaSequence: string): TranslationFrame[] => {
-  const results: TranslationFrame[] = [];
+const findOrfsOnStrand = (
+  originalDna: string,
+  strandDna: string,
+  strand: '+' | '-'
+): OpenReadingFrame[] => {
+  const rna = transcribe(strandDna);
+  const orfs: OpenReadingFrame[] = [];
   const stopCodons = ['UAA', 'UAG', 'UGA'];
+  const totalLength = originalDna.length;
 
   for (let frame = 0; frame < 3; frame++) {
-    let protein = '';
-    const frameRna = rnaSequence.substring(frame);
-    const startIndex = frameRna.indexOf('AUG');
+    const frameId = `${strand}${frame + 1}`;
+    
+    for (let i = frame; i < rna.length - 2; i += 3) {
+      const codon = rna.substring(i, i + 3);
 
-    if (startIndex !== -1) {
-      let isTranslating = false;
-      for (let i = startIndex; i < frameRna.length - 2; i += 3) {
-        const codon = frameRna.substring(i, i + 3);
-        if (codon.length < 3) break;
+      if (codon === 'AUG') { // Potential start codon
+        let protein = 'M';
+        let end = -1;
         
-        const aminoAcid = CODON_TABLE[codon];
-        if (!aminoAcid) {
-          protein += '?'; // Represents an unknown codon
-          continue;
+        // Scan for the next in-frame stop codon
+        for (let j = i + 3; j < rna.length - 2; j += 3) {
+          const nextCodon = rna.substring(j, j + 3);
+          if (stopCodons.includes(nextCodon)) {
+            end = j;
+            break;
+          }
+          const aminoAcid = CODON_TABLE[nextCodon];
+          protein += aminoAcid || '?';
         }
 
-        if (aminoAcid === 'STOP') {
-          break; // Stop translation for this frame
+        if (end !== -1) {
+          const startOnStrand = i + 1;
+          const endOnStrand = end + 3;
+
+          let finalStart, finalEnd;
+          if (strand === '+') {
+            finalStart = startOnStrand;
+            finalEnd = endOnStrand;
+          } else {
+            // Map coordinates from reverse complement back to the original forward strand
+            finalStart = totalLength - endOnStrand + 1;
+            finalEnd = totalLength - startOnStrand + 1;
+          }
+          
+          orfs.push({
+            frame: frameId,
+            start: finalStart,
+            end: finalEnd,
+            length: protein.length,
+            protein,
+          });
+
+          // Move index past this found ORF to find subsequent, non-overlapping ORFs
+          i = end;
         }
-        protein += aminoAcid;
       }
     }
-    results.push({ frame: frame + 1, protein: protein || 'No start codon (AUG) found in this reading frame.' });
   }
-  return results;
+  return orfs;
 };
 
 
@@ -88,7 +117,10 @@ export const analyzeDna = (sequence: string): AnalysisResult => {
   const complement = getComplement(cleanedSequence);
   const reverseComplement = getReverseComplement(cleanedSequence);
   const transcription = transcribe(cleanedSequence);
-  const translations = translate(transcription);
+
+  const forwardOrfs = findOrfsOnStrand(cleanedSequence, cleanedSequence, '+');
+  const reverseOrfs = findOrfsOnStrand(cleanedSequence, reverseComplement, '-');
+  const orfs = [...forwardOrfs, ...reverseOrfs];
 
   return {
     isValid: true,
@@ -99,6 +131,6 @@ export const analyzeDna = (sequence: string): AnalysisResult => {
     complement,
     reverseComplement,
     transcription,
-    translations,
+    orfs,
   };
 };
